@@ -28,7 +28,11 @@ int pagemap_get_entry(int pagemap_fd, uintptr_t vaddr, uintptr_t *paddr)
 	}
 	printf("vaddr %lx\n", vaddr);
 	printf("converted data %lx\n", data);
-	*paddr = (data & (((uint64_t)1 << 55) - 1)) << 9;
+	if (!(data & (1ULL << 63))) { // present bit
+		fprintf(stderr, "Page not present\n");
+		return -1;
+	}
+	*paddr = (data & (((uint64_t)1 << 55) - 1)) * getpagesize();
 	printf("converted paddr %lx\n", *paddr);
 	return 0;
 }
@@ -44,12 +48,11 @@ int main() {
 	int flags = MAP_ANONYMOUS | MAP_HUGETLB | MAP_PRIVATE;
 	void *arena = mmap(NULL, size, PROT_READ | PROT_WRITE, flags, -1, 0);
 
-	memset(arena, 1, size);
-
 	if (arena == MAP_FAILED) {
 		perror("mmap");
 		abort();
 	}
+	memset(arena, 1, size);
 
 	int pagemap_fd = open("/proc/self/pagemap", O_RDONLY);
 	if (pagemap_fd < 0) {
